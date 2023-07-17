@@ -1,0 +1,50 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Install commitlint
+        run: |
+          npm install conventional-changelog-conventionalcommits
+          npm install commitlint@latest
+
+      - name: Validate current commit (last commit) with commitlint
+        if: github.event_name == 'push'
+        run: npx commitlint --from HEAD~1 --to HEAD --verbose
+
+      - name: Validate PR commits with commitlint
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Install required dependencies
+        run: npm ci --force
+      
+      - name: Run unit tests
+        run: npm run test-ci
+        
+      - name: Install playwright 
+        run: npx playwright install --with-deps chromium
+        CI=true npx playwright test --project=chromium
+
+      - name: Run e2e tests
+        run: npm run e2e
+          
+      - name: Check test result
+        run: |
+          exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            echo "Tests failed. Exiting with code $exit_code."
+            exit $exit_code
+          fi
